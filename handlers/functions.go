@@ -91,7 +91,6 @@ func renderCases(s sessions.Session) string {
 	user.Get()
 
 	cases := user.GetCases()
-	log.Println(cases)
 	if cases == nil {
 		return ""
 	}
@@ -127,6 +126,19 @@ func addCase(s sessions.Session, formData url.Values) {
 			return
 		}
 	}
+}
+
+func updateCases() error {
+	for _, c := range data.GetAllCases() {
+		if err := c.CheckStatus(); err == nil {
+			continue
+		} else if err.Error() == "status changed" {
+			c.Create()
+		} else {
+			return err
+		}
+	}
+	return nil
 }
 
 func delCase(s sessions.Session, cases []string) {

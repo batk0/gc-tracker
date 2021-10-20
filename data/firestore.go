@@ -177,11 +177,33 @@ func GetCases(ids []string) []Case {
 			log.Println(err.Error())
 		} else {
 			var c Case
-			log.Println("case")
 			doc.DataTo(&c)
 			cases = append(cases, c)
 		}
 	}
-	log.Println(cases)
+	return cases
+}
+
+func GetAllCases() []Case {
+	ctx := context.Background()
+	client := connectFirestore(ctx)
+	defer client.Close()
+
+	iter := client.Collection("cases").Documents(ctx)
+	defer iter.Stop()
+	var cases []Case
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			log.Println(err.Error())
+		} else {
+			var c Case
+			doc.DataTo(&c)
+			cases = append(cases, c)
+		}
+	}
 	return cases
 }

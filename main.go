@@ -31,6 +31,7 @@ func main() {
 	http.HandleFunc("/signin", handlers.SignInHandler)
 	http.HandleFunc("/signout", handlers.SignOutHandler)
 	http.HandleFunc("/case", handlers.CaseHandler)
+	http.HandleFunc("/update", handlers.UpdateHandler)
 	http.HandleFunc("/users", handlers.UsersHandler)
 	http.HandleFunc("/style.css", handlers.StyleHandler)
 	port := os.Getenv("PORT")
