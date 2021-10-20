@@ -123,3 +123,12 @@ func StyleHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/css")
 	fmt.Fprint(w, showStyle())
 }
+
+func UpdateHandler(w http.ResponseWriter, r *http.Request) {
+	if err := updateCases(); err != nil {
+		log.Println(err.Error())
+		fmt.Fprint(w, "FAIL")
+	} else {
+		fmt.Fprint(w, "OK")
+	}
+}

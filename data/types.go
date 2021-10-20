@@ -147,7 +147,6 @@ func (u User) GetCases() []Case {
 		cases[i] = c
 		i++
 	}
-	log.Println(cases)
 	return GetCases(cases)
 }
 
@@ -228,12 +227,12 @@ func (c *Case) CheckStatus() error {
 	doc.Find(".current-status-sec span").Remove()
 	status := strings.TrimSpace(doc.Find(".current-status-sec").Text())
 
-	log.Println(status)
-
-	if c.OldStatus != status {
+	if c.Status != status {
 		// TODO notifications
+		log.Println(c.ID + " case status changed")
 		c.OldStatus = c.Status
 		c.Status = status
+		return errors.New("status changed")
 	}
 	return nil
 }
