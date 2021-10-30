@@ -18,3 +18,4 @@
 .sa-key.json
 gc-tracker
 app.yaml
+cron.yaml

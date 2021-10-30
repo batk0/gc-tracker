@@ -18,10 +18,10 @@ package data
 import (
 	"context"
 	"log"
-	"os"
 
 	"cloud.google.com/go/firestore"
 	fsgsession "github.com/GoogleCloudPlatform/firestore-gorilla-sessions"
+	"github.com/batk0/gc-tracker/config"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -29,17 +29,16 @@ import (
 )
 
 func connectFirestore(ctx context.Context) *firestore.Client {
-	projectID := os.Getenv("PROJECT_NAME")
-	gae := os.Getenv("GAE_ENV")
-	if gae == "" {
-		sa := option.WithCredentialsFile(".sa-key.json")
-		client, err := firestore.NewClient(ctx, projectID, sa)
+	projectID := config.Config.Project
+	if config.Config.IsAppEngine {
+		client, err := firestore.NewClient(ctx, projectID)
 		if err != nil {
 			log.Fatalln("Cannot connect to Firestore: " + err.Error())
 		}
 		return client
 	}
-	client, err := firestore.NewClient(ctx, projectID)
+	sa := option.WithCredentialsFile(".sa-key.json")
+	client, err := firestore.NewClient(ctx, projectID, sa)
 	if err != nil {
 		log.Fatalln("Cannot connect to Firestore: " + err.Error())
 	}

@@ -18,12 +18,16 @@ package main
 import (
 	"log"
 	"net/http"
-	"os"
 
+	"github.com/batk0/gc-tracker/config"
 	"github.com/batk0/gc-tracker/handlers"
 )
 
 func main() {
+
+	if err := config.InitConfig(); err != nil {
+		log.Fatalln(err.Error())
+	}
 
 	http.HandleFunc("/", handlers.IndexHandler)
 	http.HandleFunc("/resetpwd", handlers.ResetPwdHandler)
@@ -34,14 +38,9 @@ func main() {
 	http.HandleFunc("/update", handlers.UpdateHandler)
 	http.HandleFunc("/users", handlers.UsersHandler)
 	http.HandleFunc("/style.css", handlers.StyleHandler)
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-		log.Printf("Defaulting to %s", port)
-	}
-	log.Printf("Listening at %s", port)
+	log.Printf("Listening at %s", config.Config.Port)
 
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	if err := http.ListenAndServe(":"+config.Config.Port, nil); err != nil {
 		log.Fatalf("FATAL: %s", err)
 	}
 }
