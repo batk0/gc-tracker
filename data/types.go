@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/batk0/gc-tracker/mailer"
 	"github.com/gorilla/schema"
 	"gopkg.in/go-playground/validator.v9"
 )
@@ -150,6 +151,12 @@ func (u User) GetCases() []Case {
 	return GetCases(cases)
 }
 
+func (u User) SendNotfication(msg string) {
+	if err := mailer.Send(u.Email, msg); err != nil {
+		log.Println("Cannot send email: " + err.Error())
+	}
+}
+
 type Case struct {
 	ID        string `firestore:"id" schema:"case" validate:"alphanum,len=13"`
 	Name      string `firestore:"name" schema:"name" validate:"alphanum,min=0,max=40"`
@@ -228,8 +235,10 @@ func (c *Case) CheckStatus() error {
 	status := strings.TrimSpace(doc.Find(".current-status-sec").Text())
 
 	if c.Status != status {
-		// TODO notifications
 		log.Println(c.ID + " case status changed")
+		for _, user := range GetUserByCase(c.ID) {
+			user.SendNotfication("Your case " + c.Name + " status has changed")
+		}
 		c.OldStatus = c.Status
 		c.Status = status
 		return errors.New("status changed")

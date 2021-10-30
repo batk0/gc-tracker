@@ -76,6 +76,33 @@ func GetUser(username string) (*firestore.DocumentSnapshot, error) {
 	return user.Get(ctx)
 }
 
+func GetUserByCase(id string) []User {
+	ctx := context.Background()
+	client := connectFirestore(ctx)
+	defer client.Close()
+
+	usersRef := client.Collection("users")
+
+	q := usersRef.Where("cases."+id, "==", true)
+	iter := q.Documents(ctx)
+	defer iter.Stop()
+	var users []User
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			log.Println(err.Error())
+		} else {
+			var u User
+			doc.DataTo(&u)
+			users = append(users, u)
+		}
+	}
+	return users
+}
+
 func UserAvailable(username string) bool {
 	log.Println("Checking user: " + username)
 	ctx := context.Background()
