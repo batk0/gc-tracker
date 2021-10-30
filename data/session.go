@@ -18,12 +18,10 @@ package data
 import (
 	"log"
 	"net/http"
-	"os"
 
+	"github.com/batk0/gc-tracker/config"
 	"github.com/gorilla/sessions"
 )
-
-var coockieName string = os.Getenv("SESSION_COLLECTION")
 
 func GetSession(r *http.Request) *sessions.Session {
 	store := NewSession()
@@ -32,7 +30,7 @@ func GetSession(r *http.Request) *sessions.Session {
 		log.Println("Session store does not exist")
 	}
 
-	session, err := store.Get(r, coockieName)
+	session, err := store.Get(r, config.Config.Cookie)
 	if err != nil {
 		log.Println("Cannot get session " + err.Error())
 		return nil
