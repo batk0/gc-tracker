@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 
 	"github.com/batk0/gc-tracker/data"
 )
@@ -61,8 +62,58 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func ResetPwdHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO reset password
-	fmt.Fprint(w, showResetPwd())
+	session := data.GetSession(r)
+	if isAuthenticated(*session) {
+		w.Header().Set("Location", "/")
+		w.WriteHeader(303)
+
+	} else if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			fmt.Fprint(w, showResetPwd(err.Error()))
+		} else if err := resetPwd(r); err != nil {
+			fmt.Fprint(w, showResetPwd(err.Error()))
+		} else {
+			fmt.Fprint(w, renderPage("Check your mailbox for the reset link.", ""))
+		}
+	} else {
+		fmt.Fprint(w, showResetPwd(""))
+	}
+}
+
+func ChangePwdHandler(w http.ResponseWriter, r *http.Request) {
+	session := data.GetSession(r)
+	if isAuthenticated(*session) {
+		if r.Method == "POST" {
+			if err := r.ParseForm(); err != nil {
+				fmt.Fprint(w, showChangePwd(err.Error()))
+			} else if err := changePwd(*session, r); err != nil {
+				fmt.Fprint(w, showChangePwd(err.Error()))
+			} else {
+				fmt.Fprint(w, renderPage("Password changed", ""))
+			}
+		} else {
+			fmt.Fprint(w, showChangePwd(""))
+		}
+	} else {
+		if r.Method == "POST" && session.Values["resetToken"] != "" {
+			if err := r.ParseForm(); err != nil {
+				fmt.Fprint(w, showChangePwd(err.Error()))
+			} else if err := changePwd(*session, r); err != nil {
+				fmt.Fprint(w, showChangePwd(err.Error()))
+			} else {
+				fmt.Fprint(w, renderPage("Password changed", ""))
+			}
+		} else if q, err := url.ParseQuery(r.RequestURI); err == nil {
+			if token := q.Get("t"); token != "" {
+				session.Values["resetToken"] = token
+				session.Save(r, w)
+				fmt.Fprint(w, showChangePwd(""))
+				return
+			}
+		}
+		w.Header().Set("Location", "/resetpwd")
+		w.WriteHeader(303)
+	}
 }
 
 func SignInHandler(w http.ResponseWriter, r *http.Request) {

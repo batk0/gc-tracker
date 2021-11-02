@@ -17,7 +17,9 @@ package data
 
 import (
 	"context"
+	"errors"
 	"log"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	fsgsession "github.com/GoogleCloudPlatform/firestore-gorilla-sessions"
@@ -76,7 +78,7 @@ func GetUser(username string) (*firestore.DocumentSnapshot, error) {
 	return user.Get(ctx)
 }
 
-func GetUserByCase(id string) []User {
+func GetUsersByCase(id string) []User {
 	ctx := context.Background()
 	client := connectFirestore(ctx)
 	defer client.Close()
@@ -101,6 +103,27 @@ func GetUserByCase(id string) []User {
 		}
 	}
 	return users
+}
+
+func GetUserByResetToken(token string) (User, error) {
+	ctx := context.Background()
+	client := connectFirestore(ctx)
+	defer client.Close()
+
+	usersRef := client.Collection("users")
+
+	q := usersRef.Where("reset.Token", "==", token).
+		Where("reset.Timestamp", ">", time.Now().Unix()-3600)
+	iter := q.Documents(ctx)
+	defer iter.Stop()
+	var u User
+	doc, err := iter.Next()
+	if err != iterator.Done && err == nil {
+		doc.DataTo(&u)
+		return u, nil
+	}
+	log.Println(err.Error())
+	return u, errors.New("token not found")
 }
 
 func UserAvailable(username string) bool {
@@ -141,7 +164,7 @@ func UpdateUser(user User) error {
 
 	userDoc := client.Doc("users/" + user.Username)
 	if _, err := userDoc.Set(ctx, user); err != nil {
-		log.Println("Cannot create user: " + err.Error())
+		log.Println("Cannot update user: " + err.Error())
 		return err
 	}
 	return nil
