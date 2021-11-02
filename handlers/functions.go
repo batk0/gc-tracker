@@ -16,8 +16,10 @@ limitations under the License.
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 
 	"github.com/batk0/gc-tracker/data"
@@ -40,7 +42,6 @@ func signUp(formData url.Values) error {
 	user := new(data.User)
 
 	user.Set(formData)
-	log.Printf("Create user: %s\n", user.Username)
 	if err := user.Validate(true); err != nil {
 		log.Println(err.Error())
 		return err
@@ -53,6 +54,57 @@ func signUp(formData url.Values) error {
 		log.Println(err.Error())
 		return err
 	}
+	user.SendNotfication("Your account '" + user.Username + "' has been created.")
+	return nil
+}
+
+func resetPwd(r *http.Request) error {
+	if username := r.PostForm.Get("username"); username != "" {
+		if data.UserAvailable(username) {
+			return errors.New("user not found")
+		}
+		user := data.User{Username: username}
+		user.Get()
+		address := r.URL.Scheme + r.URL.Host + "/changepwd"
+		if err := user.GenerateResetToken(address); err != nil {
+			return errors.New("cannot generate reset token")
+		}
+	} else {
+		return errors.New("username is not specified")
+	}
+	return nil
+}
+
+func changePwd(s sessions.Session, r *http.Request) error {
+	var user data.User
+	if isAuthenticated(s) {
+		user.Username = fmt.Sprint(s.Values["username"])
+		if err := user.Get(); err != nil {
+			log.Println(err.Error())
+			return errors.New("cannot find user")
+		}
+	} else {
+		var err error
+		user, err = data.GetUserByResetToken(fmt.Sprint(s.Values["resetToken"]))
+		if err != nil {
+			return err
+		}
+	}
+	user.Password = r.PostForm.Get("password")
+	user.ConfirmPassword = r.PostForm.Get("password2")
+	if err := user.Validate(false); err != nil {
+		log.Println(err.Error())
+		return err
+	}
+	if err := user.HashAndSalt(); err != nil {
+		log.Println(err.Error())
+		return err
+	}
+	if err := user.Update(); err != nil {
+		log.Println(err.Error())
+		return err
+	}
+	user.SendNotfication("Your password has been changed.")
 	return nil
 }
 

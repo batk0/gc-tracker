@@ -40,7 +40,7 @@ var footer string = `
 	</html>
 	`
 
-var signout string = `<div><span><a href="/signout">Sign out</a></span></div>`
+var signout string = `<div><span><a href="/signout">Sign out</a></span><span width=100%>&nbsp;</span><span><a href="/changepwd">Change password</a></span></div>`
 
 func rederError(errorMsg string) string {
 	if errorMsg != "" {
@@ -97,17 +97,29 @@ func showSignUp(errorMsg string) string {
 	`, errorMsg)
 }
 
-func showResetPwd() string {
+func showChangePwd(errorMsg string) string {
+	return renderPage(`<h2>Change password</h2>
+	<form method=post>
+	<div>Password <input type=password name=password></div>
+	<div>Confirm password <input type=password name=password2></div>
+	<div>
+	<span><input type=submit value="Change password"></span>
+	</div>
+	</form>
+	`, errorMsg)
+}
+
+func showResetPwd(errorMsg string) string {
 	return renderPage(`<h2>Reset password</h2>
-	<form>
-	<div>Username <input type=text value=username></div>
+	<form method=post>
+	<div>Username <input type=text name=username></div>
 	<div>
 	<span><input type=submit value="Reset password"></span>
 	<span><a href="/signin">Sign In</a></span>
 	<span><a href="/signup">Sign Up</a></span>
 	</div>
 	</form>
-	`, "")
+	`, errorMsg)
 }
 
 func showCases(s sessions.Session) string {

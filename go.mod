@@ -8,6 +8,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.7.1 // indirect
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/go-playground/universal-translator v0.18.0 // indirect
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/schema v1.2.0
 	github.com/gorilla/sessions v1.2.1 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect

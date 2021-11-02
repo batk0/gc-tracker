@@ -31,6 +31,7 @@ func main() {
 
 	http.HandleFunc("/", handlers.IndexHandler)
 	http.HandleFunc("/resetpwd", handlers.ResetPwdHandler)
+	http.HandleFunc("/changepwd", handlers.ChangePwdHandler)
 	http.HandleFunc("/signup", handlers.SignUpHandler)
 	http.HandleFunc("/signin", handlers.SignInHandler)
 	http.HandleFunc("/signout", handlers.SignOutHandler)

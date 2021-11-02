@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -29,9 +30,15 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/batk0/gc-tracker/mailer"
+	"github.com/google/uuid"
 	"github.com/gorilla/schema"
 	"gopkg.in/go-playground/validator.v9"
 )
+
+type resetPassword struct {
+	Token     string
+	Timestamp int64
+}
 
 type User struct {
 	Username        string          `firestore:"username" schema:"username" validate:"required,min=2,max=80,alphanum,available"`
@@ -39,6 +46,7 @@ type User struct {
 	Password        string          `firestore:"password" schema:"password" validate:"required,min=8,max=80,eqfield=ConfirmPassword"`
 	ConfirmPassword string          `firestore:"-" schema:"password2"`
 	Cases           map[string]bool `firestore:"cases" schema:"-"`
+	Reset           resetPassword   `firestore:"reset" schema:"-"`
 }
 
 func (u *User) Set(formData url.Values) {
@@ -89,6 +97,20 @@ func (user *User) Get() error {
 		return err
 	}
 
+	return nil
+}
+
+func (user *User) GenerateResetToken(url string) error {
+	token := uuid.New()
+	user.Reset.Token = token.String()
+
+	user.Reset.Timestamp = time.Now().Unix()
+	if err := user.Update(); err != nil {
+		log.Println("Cannot update user " + user.Username)
+		return errors.New("cannot save reset token")
+	}
+	address := url + "?a=r&t=" + token.String()
+	defer user.SendNotfication("Please follow the link " + address + " to reset your password.")
 	return nil
 }
 
@@ -236,7 +258,7 @@ func (c *Case) CheckStatus() error {
 
 	if c.Status != status {
 		log.Println(c.ID + " case status changed")
-		for _, user := range GetUserByCase(c.ID) {
+		for _, user := range GetUsersByCase(c.ID) {
 			user.SendNotfication("Your case " + c.Name + " status has changed")
 		}
 		c.OldStatus = c.Status
