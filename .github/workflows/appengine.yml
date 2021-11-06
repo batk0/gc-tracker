@@ -4,17 +4,16 @@ name: AppEngine Deployment
 
 # Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the main branch
-  push:
+  workflow_run:
+    workflows: ["Tests"]
     branches: [ main ]
-  # pull_request:
-  #   branches: [ main ]
-
-  # Allows you to run this workflow manually from the Actions tab
+    types: 
+      - completed
   workflow_dispatch:
 
 jobs:
   deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: AppEnging
 
@@ -30,4 +29,6 @@ jobs:
         run: envsubst < app.yaml.tpl > app.yaml
 
       - name: Deploy to App Engine
-        run: gcloud app deploy --quiet
+        run: |
+          cat app.yaml
+          # gcloud app deploy --quiet
