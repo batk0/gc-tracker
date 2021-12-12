@@ -68,7 +68,6 @@ func Test_getHeaders(t *testing.T) {
 		args args
 		want string
 	}{
-		// TODO: Add test cases.
 		{
 			name: "Correct values",
 			args: args{"from@example.com", "to@example.com", "subj"},
@@ -97,7 +96,6 @@ func Test_getBody(t *testing.T) {
 		args args
 		want string
 	}{
-		// TODO: Add test cases.
 		{
 			"Some message",
 			args{"Message"},
@@ -136,7 +134,7 @@ func Test_sendReal(t *testing.T) {
 		want    spyMailer
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+
 		{
 			name: "Positive: Send Mail",
 			args: args{"to@example.com", "Message"},
