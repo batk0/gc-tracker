@@ -12,6 +12,7 @@
 # below:
 .git
 .gitignore
+.github
 
 # Binaries for programs and plugins
 *.exe
@@ -27,3 +28,4 @@
 .vscode
 .sa-key.json
 gc-tracker
+app.yaml.tpl
