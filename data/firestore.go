@@ -22,15 +22,34 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
-	fsgsession "github.com/GoogleCloudPlatform/firestore-gorilla-sessions"
 	"github.com/batk0/gc-tracker/config"
+	"github.com/gorilla/sessions"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func connectFirestore(ctx context.Context) *firestore.Client {
+type GCTrackerData interface {
+	NewSession() sessions.Store
+	NewUser() GCTrackerUser
+	UserAvailable(string) bool
+	GetUser(string) (*firestore.DocumentSnapshot, error)
+	UpdateUser(user GCTrackerUser) error
+	GetUserByResetToken(string) (GCTrackerUser, error)
+	GetUsersByCase(string) []GCTrackerUser
+	CreateUser(GCTrackerUser) error
+	NewCase() GCTrackerCase
+	GetCase(string) (*firestore.DocumentSnapshot, error)
+	GetCases([]string) []GCTrackerCase
+	GetAllCases() []GCTrackerCase
+	CreateCase(GCTrackerCase) error
+	DeleteCase(GCTrackerCase) error
+}
+
+type FirestoreGCTrackerData struct{}
+
+func (d *FirestoreGCTrackerData) connectFirestore(ctx context.Context) *firestore.Client {
 	projectID := config.Config.Project
 	if config.Config.IsAppEngine {
 		client, err := firestore.NewClient(ctx, projectID)
@@ -47,12 +66,12 @@ func connectFirestore(ctx context.Context) *firestore.Client {
 	return client
 }
 
-func CreateUser(user User) error {
+func (d *FirestoreGCTrackerData) CreateUser(user GCTrackerUser) error {
 	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
-	userDoc := client.Doc("users/" + user.Username)
+	userDoc := client.Doc("users/" + user.GetUsername())
 	if _, err := userDoc.Create(ctx, user); err != nil {
 		log.Println("Cannot create user: " + err.Error())
 		return err
@@ -60,17 +79,17 @@ func CreateUser(user User) error {
 	return nil
 }
 
-func GetUsers() ([]*firestore.DocumentSnapshot, error) {
+func (d *FirestoreGCTrackerData) GetUsers() ([]*firestore.DocumentSnapshot, error) {
 	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
 	return client.Collection("users").Documents(ctx).GetAll()
 }
 
-func GetUser(username string) (*firestore.DocumentSnapshot, error) {
+func (d *FirestoreGCTrackerData) GetUser(username string) (*firestore.DocumentSnapshot, error) {
 	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
 	user := client.Doc("users/" + username)
@@ -78,9 +97,9 @@ func GetUser(username string) (*firestore.DocumentSnapshot, error) {
 	return user.Get(ctx)
 }
 
-func GetUsersByCase(id string) []User {
+func (d *FirestoreGCTrackerData) GetUsersByCase(id string) []GCTrackerUser {
 	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
 	usersRef := client.Collection("users")
@@ -88,7 +107,7 @@ func GetUsersByCase(id string) []User {
 	q := usersRef.Where("cases."+id, "==", true)
 	iter := q.Documents(ctx)
 	defer iter.Stop()
-	var users []User
+	var users []GCTrackerUser
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -97,17 +116,17 @@ func GetUsersByCase(id string) []User {
 		if err != nil {
 			log.Println(err.Error())
 		} else {
-			var u User
-			doc.DataTo(&u)
+			u := d.NewUser()
+			doc.DataTo(u)
 			users = append(users, u)
 		}
 	}
 	return users
 }
 
-func GetUserByResetToken(token string) (User, error) {
+func (d *FirestoreGCTrackerData) GetUserByResetToken(token string) (GCTrackerUser, error) {
 	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
 	usersRef := client.Collection("users")
@@ -116,20 +135,20 @@ func GetUserByResetToken(token string) (User, error) {
 		Where("reset.Timestamp", ">", time.Now().Unix()-3600)
 	iter := q.Documents(ctx)
 	defer iter.Stop()
-	var u User
+	u := d.NewUser()
 	doc, err := iter.Next()
 	if err != iterator.Done && err == nil {
-		doc.DataTo(&u)
+		doc.DataTo(u)
 		return u, nil
 	}
 	log.Println(err.Error())
 	return u, errors.New("token not found")
 }
 
-func UserAvailable(username string) bool {
+func (d *FirestoreGCTrackerData) UserAvailable(username string) bool {
 	log.Println("Checking user: " + username)
 	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
 	user := client.Doc("users/" + username)
@@ -144,25 +163,12 @@ func UserAvailable(username string) bool {
 	return false
 }
 
-func NewSession() *fsgsession.Store {
+func (d *FirestoreGCTrackerData) UpdateUser(user GCTrackerUser) error {
 	ctx := context.Background()
-	client := connectFirestore(ctx)
-
-	store, err := fsgsession.New(ctx, client)
-	if err != nil {
-		log.Println("Cannot create session store " + err.Error())
-		return nil
-	}
-
-	return store
-}
-
-func UpdateUser(user User) error {
-	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
-	userDoc := client.Doc("users/" + user.Username)
+	userDoc := client.Doc("users/" + user.GetUsername())
 	if _, err := userDoc.Set(ctx, user); err != nil {
 		log.Println("Cannot update user: " + err.Error())
 		return err
@@ -170,12 +176,12 @@ func UpdateUser(user User) error {
 	return nil
 }
 
-func CreateCase(c Case) error {
+func (d *FirestoreGCTrackerData) CreateCase(c GCTrackerCase) error {
 	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
-	caseDoc := client.Doc("cases/" + c.ID)
+	caseDoc := client.Doc("cases/" + c.GetID())
 	if _, err := caseDoc.Set(ctx, c); err != nil {
 		log.Println("Cannot create case: " + err.Error())
 		return err
@@ -183,12 +189,12 @@ func CreateCase(c Case) error {
 	return nil
 }
 
-func DeleteCase(c Case) error {
+func (d *FirestoreGCTrackerData) DeleteCase(c GCTrackerCase) error {
 	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
-	caseDoc := client.Doc("cases/" + c.ID)
+	caseDoc := client.Doc("cases/" + c.GetID())
 	if _, err := caseDoc.Delete(ctx); err != nil {
 		log.Println("Cannot delete case: " + err.Error())
 		return err
@@ -196,9 +202,9 @@ func DeleteCase(c Case) error {
 	return nil
 }
 
-func GetCase(c string) (*firestore.DocumentSnapshot, error) {
+func (d *FirestoreGCTrackerData) GetCase(c string) (*firestore.DocumentSnapshot, error) {
 	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
 	caseRef := client.Doc("cases/" + c)
@@ -206,9 +212,9 @@ func GetCase(c string) (*firestore.DocumentSnapshot, error) {
 	return caseRef.Get(ctx)
 }
 
-func GetCases(ids []string) []Case {
+func (d *FirestoreGCTrackerData) GetCases(ids []string) []GCTrackerCase {
 	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
 	casesRef := client.Collection("cases")
@@ -216,7 +222,7 @@ func GetCases(ids []string) []Case {
 	q := casesRef.Where("id", "in", ids)
 	iter := q.Documents(ctx)
 	defer iter.Stop()
-	var cases []Case
+	var cases []GCTrackerCase
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -225,22 +231,22 @@ func GetCases(ids []string) []Case {
 		if err != nil {
 			log.Println(err.Error())
 		} else {
-			var c Case
-			doc.DataTo(&c)
+			c := d.NewCase()
+			doc.DataTo(c)
 			cases = append(cases, c)
 		}
 	}
 	return cases
 }
 
-func GetAllCases() []Case {
+func (d *FirestoreGCTrackerData) GetAllCases() []GCTrackerCase {
 	ctx := context.Background()
-	client := connectFirestore(ctx)
+	client := d.connectFirestore(ctx)
 	defer client.Close()
 
 	iter := client.Collection("cases").Documents(ctx)
 	defer iter.Stop()
-	var cases []Case
+	var cases []GCTrackerCase
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -249,8 +255,8 @@ func GetAllCases() []Case {
 		if err != nil {
 			log.Println(err.Error())
 		} else {
-			var c Case
-			doc.DataTo(&c)
+			c := d.NewCase()
+			doc.DataTo(c)
 			cases = append(cases, c)
 		}
 	}
