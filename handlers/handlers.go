@@ -21,165 +21,231 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/batk0/gc-tracker/data"
+	"github.com/batk0/gc-tracker/service"
 )
 
-func CaseHandler(w http.ResponseWriter, r *http.Request) {
-	session := data.GetSession(r)
-	if isAuthenticated(*session) && r.Method == "POST" {
+type GCTrackerService interface {
+	RenderPage(string, string) string
+	ShowStyle() string
+	ShowCases() string
+	ShowUsers() string
+	ShowSignIn(string) string
+	ShowSignUp(string) string
+	ShowResetPwd(string) string
+	ShowChangePwd(string) string
+
+	SignIn(url.Values) error
+	SignUp(url.Values) error
+	ChangePwd(*http.Request) error
+	ResetPwd(*http.Request) error
+	AddCase(url.Values)
+	DelCases([]string)
+	UpdateCases() error
+	IsAuthenticated() bool
+	GetSession(*http.Request)
+	SetAuthenticated(bool)
+	SetResetToken(string)
+	GetResetToken() string
+}
+
+type GCTrackerServer struct{ service GCTrackerService }
+
+func NewGCTrackerServer(s GCTrackerService) *GCTrackerServer {
+	if s == nil {
+		s = service.NewGCTrackerService(nil)
+	}
+	return &GCTrackerServer{service: s}
+}
+
+func (s *GCTrackerServer) CaseHandler(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	s.service.GetSession(r)
+	if s.service.IsAuthenticated() && r.Method == http.MethodPost {
+		defer r.Body.Close()
 		if err := r.ParseForm(); err != nil {
 			log.Println(err.Error())
 		} else if r.PostForm.Get("add") != "" {
-			addCase(*session, r.PostForm)
+			s.service.AddCase(r.PostForm)
 		} else if r.PostForm.Get("delete") != "" {
-			log.Println(r.PostForm)
-			delCase(*session, r.PostForm["cases"])
+			s.service.DelCases(r.PostForm["cases"])
 		}
 	}
 	w.Header().Set("Location", "/")
-	w.WriteHeader(303)
+	w.WriteHeader(http.StatusSeeOther)
 }
 
-func IndexHandler(w http.ResponseWriter, r *http.Request) {
-	session := data.GetSession(r)
-	if isAuthenticated(*session) {
-		fmt.Fprint(w, showCases(*session))
-	} else {
-		w.Header().Set("Location", "/signin")
-		w.WriteHeader(303)
-		fmt.Fprint(w, renderPage("Please SignIn first", ""))
-	}
-}
-
-func UsersHandler(w http.ResponseWriter, r *http.Request) {
-	session := data.GetSession(r)
-	if isAuthenticated(*session) {
-		fmt.Fprint(w, showUsers())
-	} else {
-		w.Header().Set("Location", "/signin")
-		w.WriteHeader(303)
-	}
-}
-
-func ResetPwdHandler(w http.ResponseWriter, r *http.Request) {
-	session := data.GetSession(r)
-	if isAuthenticated(*session) {
-		w.Header().Set("Location", "/")
-		w.WriteHeader(303)
-
-	} else if r.Method == "POST" {
-		if err := r.ParseForm(); err != nil {
-			fmt.Fprint(w, showResetPwd(err.Error()))
-		} else if err := resetPwd(r); err != nil {
-			fmt.Fprint(w, showResetPwd(err.Error()))
+func (s *GCTrackerServer) IndexHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		s.service.GetSession(r)
+		if s.service.IsAuthenticated() {
+			fmt.Fprint(w, s.service.ShowCases())
 		} else {
-			fmt.Fprint(w, renderPage("Check your mailbox for the reset link.", ""))
+			w.Header().Set("Location", "/signin")
+			w.WriteHeader(http.StatusSeeOther)
+			fmt.Fprint(w, s.service.RenderPage("Please SignIn first", ""))
 		}
 	} else {
-		fmt.Fprint(w, showResetPwd(""))
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func ChangePwdHandler(w http.ResponseWriter, r *http.Request) {
-	session := data.GetSession(r)
-	if isAuthenticated(*session) {
-		if r.Method == "POST" {
-			if err := r.ParseForm(); err != nil {
-				fmt.Fprint(w, showChangePwd(err.Error()))
-			} else if err := changePwd(*session, r); err != nil {
-				fmt.Fprint(w, showChangePwd(err.Error()))
-			} else {
-				fmt.Fprint(w, renderPage("Password changed", ""))
-			}
+func (s *GCTrackerServer) UsersHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		s.service.GetSession(r)
+		if s.service.IsAuthenticated() {
+			fmt.Fprint(w, s.service.ShowUsers())
 		} else {
-			fmt.Fprint(w, showChangePwd(""))
+			w.Header().Set("Location", "/signin")
+			w.WriteHeader(http.StatusSeeOther)
 		}
 	} else {
-		if r.Method == "POST" && session.Values["resetToken"] != "" {
-			if err := r.ParseForm(); err != nil {
-				fmt.Fprint(w, showChangePwd(err.Error()))
-			} else if err := changePwd(*session, r); err != nil {
-				fmt.Fprint(w, showChangePwd(err.Error()))
-			} else {
-				fmt.Fprint(w, renderPage("Password changed", ""))
-			}
-		} else if q, err := url.ParseQuery(r.RequestURI); err == nil {
-			if token := q.Get("t"); token != "" {
-				session.Values["resetToken"] = token
-				session.Save(r, w)
-				fmt.Fprint(w, showChangePwd(""))
-				return
-			}
-		}
-		w.Header().Set("Location", "/resetpwd")
-		w.WriteHeader(303)
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func SignInHandler(w http.ResponseWriter, r *http.Request) {
-	session := data.GetSession(r)
-	if isAuthenticated(*session) {
-		w.Header().Set("Location", "/")
-		w.WriteHeader(303)
-		fmt.Fprint(w, renderPage("Already signed in", ""))
-	} else if r.Method == "POST" {
-		if err := r.ParseForm(); err != nil {
-			fmt.Fprint(w, showSignIn(err.Error()))
-		} else if err := signIn(r.PostForm); err != nil {
-			fmt.Fprint(w, showSignIn(err.Error()))
-		} else {
-			session.Values["authenticated"] = true
-			session.Values["username"] = r.PostForm.Get("username")
-			session.Save(r, w)
+func (s *GCTrackerServer) ResetPwdHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet || r.Method == http.MethodPost {
+		s.service.GetSession(r)
+		if s.service.IsAuthenticated() {
 			w.Header().Set("Location", "/")
-			w.WriteHeader(303)
-			fmt.Fprint(w, renderPage("You have signed in", ""))
-
-		}
-	} else {
-		fmt.Fprint(w, showSignIn(""))
-	}
-
-}
-
-func SignOutHandler(w http.ResponseWriter, r *http.Request) {
-	session := data.GetSession(r)
-	if isAuthenticated(*session) {
-		session.Values["authenticated"] = false
-		session.Save(r, w)
-	}
-	w.Header().Set("Location", "/signin")
-	w.WriteHeader(303)
-}
-
-func SignUpHandler(w http.ResponseWriter, r *http.Request) {
-	session := data.GetSession(r)
-	if isAuthenticated(*session) {
-		w.Header().Set("Location", "/")
-		w.WriteHeader(303)
-	} else if r.Method == "POST" {
-		if err := r.ParseForm(); err != nil {
-			fmt.Fprint(w, showSignUp(err.Error()))
-		} else if err := signUp(r.PostForm); err != nil {
-			fmt.Fprint(w, showSignUp(err.Error()))
+			w.WriteHeader(http.StatusSeeOther)
+		} else if r.Method == http.MethodPost {
+			if err := r.ParseForm(); err != nil {
+				fmt.Fprint(w, s.service.ShowResetPwd(err.Error()))
+			} else if err := s.service.ResetPwd(r); err != nil {
+				fmt.Fprint(w, s.service.ShowResetPwd(err.Error()))
+			} else {
+				fmt.Fprint(w, s.service.RenderPage("Check your mailbox for the reset link.", ""))
+			}
 		} else {
-			fmt.Fprint(w, renderPage("Account created", ""))
+			fmt.Fprint(w, s.service.ShowResetPwd(""))
 		}
 	} else {
-		fmt.Fprint(w, showSignUp(""))
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func StyleHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/css")
-	fmt.Fprint(w, showStyle())
+func (s *GCTrackerServer) ChangePwdHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet || r.Method == http.MethodPost {
+		s.service.GetSession(r)
+		if s.service.IsAuthenticated() {
+			if r.Method == http.MethodPost {
+				if err := r.ParseForm(); err != nil {
+					fmt.Fprint(w, s.service.ShowChangePwd(err.Error()))
+				} else if err := s.service.ChangePwd(r); err != nil {
+					fmt.Fprint(w, s.service.ShowChangePwd(err.Error()))
+				} else {
+					fmt.Fprint(w, s.service.RenderPage("Password changed", ""))
+				}
+			} else {
+				fmt.Fprint(w, s.service.ShowChangePwd(""))
+			}
+		} else {
+			if r.Method == http.MethodPost && s.service.GetResetToken() != "" {
+				if err := r.ParseForm(); err != nil {
+					fmt.Fprint(w, s.service.ShowChangePwd(err.Error()))
+				} else if err := s.service.ChangePwd(r); err != nil {
+					fmt.Fprint(w, s.service.ShowChangePwd(err.Error()))
+				} else {
+					fmt.Fprint(w, s.service.RenderPage("Password changed", ""))
+				}
+			} else if q, err := url.ParseQuery(r.RequestURI); err == nil {
+				if token := q.Get("t"); token != "" {
+					s.service.SetResetToken(token)
+					fmt.Fprint(w, s.service.ShowChangePwd(""))
+					return
+				}
+			}
+			w.Header().Set("Location", "/resetpwd")
+			w.WriteHeader(http.StatusSeeOther)
+		}
+	} else {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
 }
 
-func UpdateHandler(w http.ResponseWriter, r *http.Request) {
-	if err := updateCases(); err != nil {
-		log.Println(err.Error())
-		fmt.Fprint(w, "FAIL")
+func (s *GCTrackerServer) SignInHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet || r.Method == http.MethodPost {
+		s.service.GetSession(r)
+		if s.service.IsAuthenticated() {
+			w.Header().Set("Location", "/")
+			w.WriteHeader(http.StatusSeeOther)
+		} else if r.Method == http.MethodPost {
+			if err := r.ParseForm(); err != nil {
+				fmt.Fprint(w, s.service.ShowSignIn(err.Error()))
+			} else if err := s.service.SignIn(r.PostForm); err != nil {
+				fmt.Fprint(w, s.service.ShowSignIn(err.Error()))
+			} else {
+				s.service.SetAuthenticated(true)
+				w.Header().Set("Location", "/")
+				w.WriteHeader(http.StatusSeeOther)
+			}
+		} else {
+			fmt.Fprint(w, s.service.ShowSignIn(""))
+		}
 	} else {
-		fmt.Fprint(w, "OK")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *GCTrackerServer) SignOutHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		s.service.GetSession(r)
+		if s.service.IsAuthenticated() {
+			s.service.SetAuthenticated(false)
+		}
+		w.Header().Set("Location", "/signin")
+		w.WriteHeader(http.StatusSeeOther)
+	} else {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *GCTrackerServer) SignUpHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet || r.Method == http.MethodPost {
+		s.service.GetSession(r)
+		if s.service.IsAuthenticated() {
+			w.Header().Set("Location", "/")
+			w.WriteHeader(http.StatusSeeOther)
+		} else if r.Method == http.MethodPost {
+			if err := r.ParseForm(); err != nil {
+				fmt.Fprint(w, s.service.ShowSignUp(err.Error()))
+			} else if err := s.service.SignUp(r.PostForm); err != nil {
+				fmt.Fprint(w, s.service.ShowSignUp(err.Error()))
+			} else {
+				fmt.Fprint(w, s.service.RenderPage("Account created", ""))
+			}
+		} else {
+			fmt.Fprint(w, s.service.ShowSignUp(""))
+		}
+	} else {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *GCTrackerServer) StyleHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		w.Header().Set("Content-Type", "text/css")
+		fmt.Fprint(w, s.service.ShowStyle())
+	} else {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *GCTrackerServer) UpdateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		if err := s.service.UpdateCases(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			log.Println(err.Error())
+			fmt.Fprint(w, "FAIL")
+		} else {
+			fmt.Fprint(w, "OK")
+		}
+	} else {
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
