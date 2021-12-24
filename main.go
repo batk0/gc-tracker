@@ -29,16 +29,17 @@ func main() {
 		log.Fatalln(err.Error())
 	}
 
-	http.HandleFunc("/", handlers.IndexHandler)
-	http.HandleFunc("/resetpwd", handlers.ResetPwdHandler)
-	http.HandleFunc("/changepwd", handlers.ChangePwdHandler)
-	http.HandleFunc("/signup", handlers.SignUpHandler)
-	http.HandleFunc("/signin", handlers.SignInHandler)
-	http.HandleFunc("/signout", handlers.SignOutHandler)
-	http.HandleFunc("/case", handlers.CaseHandler)
-	http.HandleFunc("/update", handlers.UpdateHandler)
-	http.HandleFunc("/users", handlers.UsersHandler)
-	http.HandleFunc("/style.css", handlers.StyleHandler)
+	gcTracker := handlers.NewGCTrackerServer(nil)
+	http.HandleFunc("/", gcTracker.IndexHandler)
+	http.HandleFunc("/resetpwd", gcTracker.ResetPwdHandler)
+	http.HandleFunc("/changepwd", gcTracker.ChangePwdHandler)
+	http.HandleFunc("/signup", gcTracker.SignUpHandler)
+	http.HandleFunc("/signin", gcTracker.SignInHandler)
+	http.HandleFunc("/signout", gcTracker.SignOutHandler)
+	http.HandleFunc("/case", gcTracker.CaseHandler)
+	http.HandleFunc("/update", gcTracker.UpdateHandler)
+	http.HandleFunc("/users", gcTracker.UsersHandler)
+	http.HandleFunc("/style.css", gcTracker.StyleHandler)
 	log.Printf("Listening at %s", config.Config.Port)
 
 	if err := http.ListenAndServe(":"+config.Config.Port, nil); err != nil {
