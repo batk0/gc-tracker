@@ -16,25 +16,22 @@ limitations under the License.
 package data
 
 import (
+	"context"
 	"log"
-	"net/http"
 
-	"github.com/batk0/gc-tracker/config"
+	fsgsession "github.com/GoogleCloudPlatform/firestore-gorilla-sessions"
 	"github.com/gorilla/sessions"
 )
 
-func GetSession(r *http.Request) *sessions.Session {
-	store := NewSession()
+func (d *FirestoreGCTrackerData) NewSession() sessions.Store {
+	ctx := context.Background()
+	client := d.connectFirestore(ctx)
 
-	if store == nil {
-		log.Println("Session store does not exist")
-	}
-
-	session, err := store.Get(r, config.Config.Cookie)
+	store, err := fsgsession.New(ctx, client)
 	if err != nil {
-		log.Println("Cannot get session " + err.Error())
+		log.Println("Cannot create session store " + err.Error())
 		return nil
 	}
 
-	return session
+	return store
 }
