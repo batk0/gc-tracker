@@ -13,13 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package handlers
-
-import (
-	"strings"
-
-	"github.com/gorilla/sessions"
-)
+package service
 
 var header string = `<!DOCTYPE HTML>
 	<html>
@@ -42,30 +36,8 @@ var footer string = `
 
 var signout string = `<div><span><a href="/signout">Sign out</a></span><span width=100%>&nbsp;</span><span><a href="/changepwd">Change password</a></span></div>`
 
-func rederError(errorMsg string) string {
-	if errorMsg != "" {
-		str := "<div class='error'><ul>"
-		for _, s := range strings.Split(errorMsg, "\n") {
-			if s != "" {
-				str += "<li>" + s
-			}
-		}
-		str += "</ul></div>"
-		return str
-	}
-	return ""
-}
-
-func renderPage(content string, errorMsg string) string {
-	str := header
-	str += rederError(errorMsg)
-	str += content
-	str += footer
-	return str
-}
-
-func showSignIn(errorMsg string) string {
-	return renderPage(`
+func (s *GCTrackerService) ShowSignIn(errorMsg string) string {
+	return s.RenderPage(`
 	<h2>Sign In</h2>
 	<form method=post>
 	<div>Username <input type=text name=username></div>
@@ -79,26 +51,25 @@ func showSignIn(errorMsg string) string {
 	`, errorMsg)
 }
 
-func showSignUp(errorMsg string) string {
-	return renderPage(`
-	<h2>Sign Up</h2>
-	<form method=post>
-	<div>Username <input type=text name=username></div>
-	<div>E-Mail <input type=text name=email></div>	
-	<div>Password <input type=password name=password></div>
-	<div>Confirm password <input type=password name=password2></div>
-	<div>
-	<span><input type=submit value="Sign Up"></span>
-	<span><a href="/">Sign In</a></span>
-	<span><a href="/resetpwd">Forgot password?</a></span>
-	</div>
-	</form>
-	
-	`, errorMsg)
+func (s *GCTrackerService) ShowSignUp(errorMsg string) string {
+	return s.RenderPage(`
+<h2>Sign Up</h2>
+<form method=post>
+<div>Username <input type=text name=username></div>
+<div>E-Mail <input type=text name=email></div>	
+<div>Password <input type=password name=password></div>
+<div>Confirm password <input type=password name=password2></div>
+<div>
+<span><input type=submit value="Sign Up"></span>
+<span><a href="/">Sign In</a></span>
+<span><a href="/resetpwd">Forgot password?</a></span>
+</div>
+</form>
+`, errorMsg)
 }
 
-func showChangePwd(errorMsg string) string {
-	return renderPage(`<h2>Change password</h2>
+func (s *GCTrackerService) ShowChangePwd(errorMsg string) string {
+	return s.RenderPage(`<h2>Change password</h2>
 	<form method=post>
 	<div>Password <input type=password name=password></div>
 	<div>Confirm password <input type=password name=password2></div>
@@ -109,8 +80,8 @@ func showChangePwd(errorMsg string) string {
 	`, errorMsg)
 }
 
-func showResetPwd(errorMsg string) string {
-	return renderPage(`<h2>Reset password</h2>
+func (s *GCTrackerService) ShowResetPwd(errorMsg string) string {
+	return s.RenderPage(`<h2>Reset password</h2>
 	<form method=post>
 	<div>Username <input type=text name=username></div>
 	<div>
@@ -122,11 +93,11 @@ func showResetPwd(errorMsg string) string {
 	`, errorMsg)
 }
 
-func showCases(s sessions.Session) string {
-	return renderPage(`<h2>Cases</h2>
+func (s *GCTrackerService) ShowCases() string {
+	return s.RenderPage(`<h2>Cases</h2>
 	<form method=post action="/case">
 	<table>
-	`+renderCases(s)+`
+	`+s.RenderCases()+`
 	</table>
 	<div>
 	<span>ID <input type=text name=case></span>
